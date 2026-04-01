@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LED Matrix 1088BS Pattern Editor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style type="text/tailwindcss">
+        @layer components {
+            .btn {
+                @apply px-6 py-3 text-xs lg:text-base border-none rounded-lg cursor-pointer font-semibold transition-all duration-300 shadow-md hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:shadow-md;
+            }
+            .btn-primary {
+                @apply bg-gradient-to-br from-[#667eea] to-[#764ba2] text-white;
+            }
+            .btn-secondary {
+                @apply bg-gray-500 text-white hover:bg-gray-600;
+            }
+            .btn-info {
+                @apply bg-cyan-500 text-white hover:bg-cyan-600;
+            }
+            .cell {
+                @apply aspect-square bg-white border-2 border-gray-200 rounded-md cursor-pointer transition-all duration-200 relative hover:scale-110 hover:z-10 hover:shadow-lg;
+            }
+            .cell.active {
+                @apply bg-[#ff6b6b] border-[#ff5252] shadow-[0_0_15px_rgba(255,107,107,0.5)];
+            }
+            .cell.active::after {
+                content: '●';
+                @apply text-white text-2xl absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2;
+            }
+            .preset-btn {
+                @apply px-4 py-2 text-sm bg-white text-gray-700 border-2 border-gray-200 rounded hover:bg-gray-200 hover:border-gray-300 transition-colors;
+            }
+
+            .code-block {
+                @apply bg-[#1e1e1e] text-[#d4d4d4] p-5 rounded-xl font-mono text-xs leading-relaxed overflow-x-auto max-h-[500px] overflow-y-auto relative shadow-inner;
+            }
+
+            .copy-btn {
+                @apply absolute top-3 right-3 px-3 py-1.5 text-xs bg-green-600 text-white border-none rounded hover:bg-green-700 transition-colors;
+            }
+        }
+    </style>
+</head>
+
+<body class="min-h-screen bg-zinc-100 flex items-center justify-center">
+    <div class="container max-w-6xl mx-auto bg-white border-l border-r p-5 space-y-5">
+        <h1 class="text-center text-[#667eea] text-lg lg:text-4xl font-bold">🔴 LED Matrix 1088BS Pattern Editor</h1>
+        <p class="subtitle text-center text-gray-500 mb-8 text-xs lg:text-base">
+            Click cells to toggle LEDs ON/OFF • Generate Arduino code instantly
+        </p> 
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div class="space-y-4">
+                <div class="grid-title text-xl font-bold text-gray-800 text-center md:text-left">8×8 LED Matrix </div>
+                <div class="grid grid-cols-8 gap-1 bg-gray-100 p-5" id="ledGrid"></div>
+            </div>
+            <div class="space-y-4">
+                <div class="text-base lg:text-xl font-bold mb-4 text-gray-800">Arduino Code Output</div>
+                <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode()">Copy</button>
+                    <pre id="codeOutput" class="m-0 whitespace-pre-wrap break-words">// Click "Generate Code" to see your pattern here</pre>
+                </div>
+                <div class="grid grid-cols-3 gap-3 ">
+                    <button class="btn btn-primary" onclick="generateCode()">Generate Code</button>
+                    <button class="btn btn-info" onclick="invertGrid()">🔄 Invert</button>
+                    <button class="btn btn-secondary" onclick="clearGrid()">Clear All</button>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <button class="btn btn-info col-span-1" onclick="flipHorizontal()">↔️ Flip X</button>
+                    <button class="btn btn-info col-span-1" onclick="flipVertical()">↕️ Flip Y</button>
+                    <button class="btn btn-info col-span-1" onclick="flipBoth()">🔄 Flip Both</button>
+                </div>
+                <div class="p-5 -mx-5 space-y-4">
+                    <div class="text-base lg:text-lg font-bold text-gray-800">Quick Presets</div>
+                    <div class="preset-buttons flex gap-2 flex-wrap">
+                        <button class="preset-btn" onclick="loadPreset('A')">A</button>
+                        <button class="preset-btn" onclick="loadPreset('B')">B</button>
+                        <button class="preset-btn" onclick="loadPreset('C')">C</button>
+                        <button class="preset-btn" onclick="loadPreset('D')">D</button>
+                        <button class="preset-btn" onclick="loadPreset('E')">E</button>
+                        <button class="preset-btn" onclick="loadPreset('F')">F</button>
+                        <button class="preset-btn" onclick="loadPreset('G')">G</button>
+                        <button class="preset-btn" onclick="loadPreset('H')">H</button>
+                        <button class="preset-btn" onclick="loadPreset('I')">I</button>
+                        <button class="preset-btn" onclick="loadPreset('J')">J</button>
+                        <button class="preset-btn" onclick="loadPreset('K')">K</button>
+                        <button class="preset-btn" onclick="loadPreset('L')">L</button>
+                        <button class="preset-btn" onclick="loadPreset('M')">M</button>
+                        <button class="preset-btn" onclick="loadPreset('N')">N</button>
+                        <button class="preset-btn" onclick="loadPreset('O')">O</button>
+                        <button class="preset-btn" onclick="loadPreset('P')">P</button>
+                        <button class="preset-btn" onclick="loadPreset('Q')">Q</button>
+                        <button class="preset-btn" onclick="loadPreset('R')">R</button>
+                        <button class="preset-btn" onclick="loadPreset('S')">S</button>
+                        <button class="preset-btn" onclick="loadPreset('T')">T</button>
+                        <button class="preset-btn" onclick="loadPreset('U')">U</button>
+                        <button class="preset-btn" onclick="loadPreset('V')">V</button>
+                        <button class="preset-btn" onclick="loadPreset('W')">W</button>
+                        <button class="preset-btn" onclick="loadPreset('X')">X</button>
+                        <button class="preset-btn" onclick="loadPreset('Y')">Y</button>
+                        <button class="preset-btn" onclick="loadPreset('Z')">Z</button>
+                        <button class="preset-btn" onclick="loadPreset('HEART')">❤️</button>
+                        <button class="preset-btn" onclick="loadPreset('EX')">!</button>
+                    </div>
+                </div>
+            </div>
+        </div> 
+         
+        <div class="bg-blue-50 border-l-4 border-r-4 border-blue-500 -mx-5 p-5 text-xs lg:text-sm">
+            <p class="text-blue-700 my-1"><strong>Instructions:</strong></p>
+            <p class="text-blue-700 my-1">• Click on any cell to toggle it ON (red) or OFF (white)</p>
+            <p class="text-blue-700 my-1">• Use "Clear All" to reset the grid</p>
+            <p class="text-blue-700 my-1">• Use flip buttons to mirror your pattern (X-axis, Y-axis, or both)</p>
+            <p class="text-blue-700 my-1">• Click "Generate Code" to create Arduino byte array</p>
+            <p class="text-blue-700 my-1">• Use presets to load common patterns</p>
+        </div>
+    </div>
+
+    <script>
+        // Grid state: 8x8 array, true = LED ON, false = LED OFF
+        let grid = Array(8).fill().map(() => Array(8).fill(false));
+        let isDrawing = false;
+        let drawMode = true; // true = turn on, false = turn off
+
+        // Initialize the grid
+        function initGrid() {
+            const gridElement = document.getElementById('ledGrid');
+            gridElement.innerHTML = '';
+
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+
+                    cell.addEventListener('mousedown', (e) => {
+                        e.preventDefault();
+                        isDrawing = true;
+                        drawMode = !grid[row][col];
+                        toggleCell(row, col, drawMode);
+                    });
+
+                    cell.addEventListener('mouseenter', () => {
+                        if (isDrawing) {
+                            toggleCell(row, col, drawMode);
+                        }
+                    });
+
+                    cell.addEventListener('mouseup', () => {
+                        isDrawing = false;
+                    });
+
+                    gridElement.appendChild(cell);
+                }
+            }
+
+            // Stop drawing when mouse leaves grid
+            document.addEventListener('mouseup', () => {
+                isDrawing = false;
+            });
+
+            updateGridDisplay();
+        }
+
+        function toggleCell(row, col, state) {
+            grid[row][col] = state;
+            updateGridDisplay();
+        }
+
+        function updateGridDisplay() {
+            const cells = document.querySelectorAll('.cell');
+            cells.forEach(cell => {
+                const row = parseInt(cell.dataset.row);
+                const col = parseInt(cell.dataset.col);
+                if (grid[row][col]) {
+                    cell.classList.add('active');
+                } else {
+                    cell.classList.remove('active');
+                }
+            });
+        }
+
+        function clearGrid() {
+            grid = Array(8).fill().map(() => Array(8).fill(false));
+            updateGridDisplay();
+        }
+
+        function invertGrid() {
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    grid[row][col] = !grid[row][col];
+                }
+            }
+            updateGridDisplay();
+        }
+
+        // Flip horizontally (X-axis)
+        function flipHorizontal() {
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 4; col++) {
+                    const temp = grid[row][col];
+                    grid[row][col] = grid[row][7 - col];
+                    grid[row][7 - col] = temp;
+                }
+            }
+            updateGridDisplay();
+        }
+
+        // Flip vertically (Y-axis)
+        function flipVertical() {
+            for (let row = 0; row < 4; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const temp = grid[row][col];
+                    grid[row][col] = grid[7 - row][col];
+                    grid[7 - row][col] = temp;
+                }
+            }
+            updateGridDisplay();
+        }
+
+        // Flip both axes (horizontal and vertical)
+        function flipBoth() {
+            flipHorizontal();
+            flipVertical();
+        }
+
+        // Convert grid to Arduino byte array
+        // Note: The Arduino code uses inverted logic (1 = OFF, 0 = ON)
+        // Columns are flipped on X-axis (col 0 in editor = bit 7, col 7 in editor = bit 0)
+        function gridToBytes() {
+            const bytes = [];
+
+            // Iterate rows in normal order
+            for (let row = 0; row < 8; row++) {
+                let byte = 0;
+                for (let col = 0; col < 8; col++) {
+                    // If LED is ON, bit should be 0 (inverted logic)
+                    // If LED is OFF, bit should be 1
+                    // Reverse column order: col 0 -> bit 7, col 7 -> bit 0 (X-axis flip)
+                    if (!grid[row][col]) {
+                        byte |= (1 << (7 - col)); // Set bit at reversed column position
+                    }
+                }
+                bytes.push(byte);
+            }
+
+            return bytes;
+        }
+
+        function bytesToBinaryString(bytes) {
+            return bytes.map(byte => {
+                let binary = byte.toString(2).padStart(8, '0');
+                return `B${binary}`;
+            }).join(', ');
+        }
+
+        function generateCode() {
+            const bytes = gridToBytes();
+            const binaryString = bytesToBinaryString(bytes);
+            const variableName = 'MY_PATTERN';
+
+            const code = `byte ${variableName}[] = {\n    ${binaryString}\n};`;
+
+            document.getElementById('codeOutput').textContent = code;
+        }
+
+        function copyCode() {
+            const code = document.getElementById('codeOutput').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = event.target;
+                const originalText = btn.textContent;
+                btn.textContent = 'Copied!';
+                btn.classList.add('bg-cyan-600');
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.classList.remove('bg-cyan-600');
+                }, 2000);
+            });
+        }
+
+        // Preset patterns from the Arduino code
+        // Values are decimal representations of binary patterns
+        // Note: 1 = LED OFF, 0 = LED ON (inverted logic in Arduino)
+        const presets = {
+            'A': [255, 195, 219, 219, 195, 219, 219, 255],
+            'B': [255, 199, 215, 195, 219, 219, 195, 255],
+            'C': [255, 195, 219, 223, 223, 219, 195, 255],
+            'D': [255, 199, 219, 219, 219, 219, 199, 255],
+            'E': [255, 195, 223, 199, 223, 223, 195, 255],
+            'F': [255, 195, 223, 199, 223, 223, 223, 255],
+            'G': [255, 131, 223, 223, 211, 219, 131, 255],
+            'H': [255, 219, 219, 195, 219, 219, 219, 255],
+            'I': [255, 227, 247, 247, 247, 247, 227, 255],
+            'J': [255, 227, 247, 247, 247, 215, 199, 255],
+            'K': [255, 219, 215, 207, 215, 219, 219, 255],
+            'L': [255, 223, 223, 223, 223, 223, 131, 255],
+            'M': [255, 187, 147, 171, 187, 187, 187, 255],
+            'N': [255, 219, 203, 203, 211, 211, 219, 255],
+            'O': [255, 231, 219, 219, 219, 219, 231, 255],
+            'P': [255, 199, 219, 219, 199, 223, 223, 255],
+            'Q': [255, 231, 219, 219, 219, 219, 231, 253],
+            'R': [255, 199, 219, 219, 199, 219, 219, 255],
+            'S': [255, 195, 239, 195, 251, 251, 195, 255],
+            'T': [255, 131, 239, 239, 239, 239, 239, 255],
+            'U': [255, 219, 219, 219, 219, 219, 231, 255],
+            'V': [255, 219, 219, 219, 219, 231, 231, 255],
+            'W': [255, 187, 187, 187, 171, 147, 187, 255],
+            'X': [255, 187, 215, 239, 239, 215, 187, 255],
+            'Y': [255, 187, 215, 239, 239, 239, 239, 255],
+            'Z': [255, 195, 251, 247, 239, 223, 195, 255],
+            'HEART': [189, 24, 0, 0, 0, 129, 195, 231],
+            'EX': [255, 239, 239, 239, 239, 255, 239, 255]
+        };
+
+        function loadPreset(presetName) {
+            const preset = presets[presetName];
+            if (!preset) return;
+
+            // Convert preset bytes to grid
+            // Remember: 1 = LED OFF, 0 = LED ON (inverted logic)
+            // Columns are reversed to match X-axis flip (bit 0 -> col 7, bit 7 -> col 0)
+            for (let row = 0; row < 8; row++) {
+                const byte = preset[row];
+
+                for (let col = 0; col < 8; col++) {
+                    // Extract bit at reversed column position (X-axis flip)
+                    const bitPos = 7 - col; // Reverse column order
+                    const bit = (byte >> bitPos) & 0x01;
+                    // If bit is 0, LED is ON; if bit is 1, LED is OFF
+                    grid[row][col] = (bit === 0);
+                }
+            }
+
+            updateGridDisplay();
+        }
+
+        // Initialize on page load
+        initGrid();
+    </script>
+</body>
+
+</html>
