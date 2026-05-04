@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>16×16 NeoMatrix Pattern Editor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style type="text/tailwindcss">
+        @layer components {
+            .btn {
+                @apply px-6 py-3 text-xs lg:text-base border-none rounded-lg cursor-pointer font-semibold transition-all duration-300 shadow-md hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:shadow-md;
+            }
+            .btn-primary {
+                @apply bg-gradient-to-br from-[#667eea] to-[#764ba2] text-white;
+            }
+            .btn-secondary {
+                @apply bg-gray-500 text-white hover:bg-gray-600;
+            }
+            .btn-info {
+                @apply bg-cyan-500 text-white hover:bg-cyan-600;
+            }
+            .cell {
+                @apply aspect-square bg-white border border-gray-300 rounded-sm cursor-pointer transition-all duration-200 relative hover:scale-110 hover:z-10 hover:shadow-lg;
+            }
+            .cell.selected {
+                @apply border-4 border-blue-500 shadow-lg ring-2 ring-blue-300;
+            }
+            .preset-btn {
+                @apply px-4 py-2 text-sm bg-white text-gray-700 border-2 border-gray-200 rounded hover:bg-gray-200 hover:border-gray-300 transition-colors;
+            }
+            .code-block {
+                @apply bg-[#1e1e1e] text-[#d4d4d4] p-5 rounded-xl font-mono text-xs leading-relaxed overflow-x-auto max-h-[500px] overflow-y-auto relative shadow-inner;
+            }
+            .copy-btn {
+                @apply absolute top-3 right-3 px-3 py-1.5 text-xs bg-green-600 text-white border-none rounded hover:bg-green-700 transition-colors;
+            }
+            .color-picker-popup {
+                @apply fixed bg-white border-2 border-gray-300 rounded-lg shadow-2xl p-4 z-50;
+            }
+            .color-swatch {
+                @apply w-8 h-8 rounded border-2 border-gray-300 cursor-pointer hover:scale-110 transition-transform;
+            }
+        }
+    </style>
+</head>
+
+<body class="min-h-screen bg-zinc-100 flex items-center justify-center p-2">
+    <div class="container max-w-7xl mx-auto bg-white border-l border-r p-5 space-y-5">
+        <h1 class="text-center text-[#667eea] text-lg lg:text-4xl font-bold">🌈 16×16 NeoMatrix Pattern Editor</h1>
+        <p class="subtitle text-center text-gray-500 mb-8 text-xs lg:text-base">
+            Click cells to select colors • Generate Adafruit NeoMatrix code instantly
+        </p> 
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div class="space-y-4">
+                <div class="grid-title text-xl font-bold text-gray-800 text-center md:text-left">16×16 LED Matrix</div>
+                <div class="bg-gray-100 p-3 overflow-x-auto" id="ledGrid" style="display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 2px;"></div>
+                <div class="mt-3">
+                    <label class="btn btn-info text-xs px-4 py-2 cursor-pointer inline-block">
+                        📷 Upload Image
+                        <input type="file" id="imageUpload" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
+                    </label>
+                    <div id="imagePreview" class="mt-2 hidden">
+                        <div class="text-xs text-gray-600 mb-1">Pixelated Preview:</div>
+                        <canvas id="previewCanvas" class="border border-gray-300 rounded max-w-full"></canvas>
+                        <div class="mt-2 space-y-1">
+                            <div class="flex items-center justify-between">
+                                <label class="text-xs text-gray-700 font-semibold">Color Quantization:</label>
+                                <span id="quantizationValue" class="text-xs text-gray-600 font-mono">8 levels</span>
+                            </div>
+                            <input type="range" id="quantizationSlider" min="2" max="16" value="8" step="1" 
+                                   class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                                   oninput="updateQuantization(this.value)">
+                            <div class="flex justify-between text-xs text-gray-500">
+                                <span>More subtle</span>
+                                <span>More colors</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    <div class="text-sm font-semibold text-gray-700">Current Color:</div>
+                    <div class="flex items-center gap-3">
+                        <input type="color" id="colorPicker" value="#ff0000" class="w-16 h-16 border-2 border-gray-300 rounded cursor-pointer">
+                        <div class="flex-1">
+                            <div class="text-xs text-gray-600 mb-1">RGB:</div>
+                            <div id="rgbDisplay" class="text-sm font-mono">RGB(255, 0, 0)</div>
+                        </div>
+                        <button class="btn btn-info text-xs px-4 py-2" onclick="setSelectedColor()">Apply to Selected</button>
+                    </div>
+                </div>
+            </div>
+            <div class="space-y-4">
+                <div class="text-base lg:text-xl font-bold mb-4 text-gray-800">Arduino Code Output</div>
+                <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode()">Copy</button>
+                    <pre id="codeOutput" class="m-0 whitespace-pre-wrap break-words">// Click "Generate Code" to see your pattern here</pre>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <button class="btn btn-primary" onclick="generateCode()">Generate Code</button>
+                    <button class="btn btn-info" onclick="invertGrid()">🔄 Invert</button>
+                    <button class="btn btn-secondary" onclick="clearGrid()">Clear All</button>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <button class="btn btn-info col-span-1" onclick="flipHorizontal()">↔️ Flip X</button>
+                    <button class="btn btn-info col-span-1" onclick="flipVertical()">↕️ Flip Y</button>
+                    <button class="btn btn-info col-span-1" onclick="flipBoth()">🔄 Flip Both</button>
+                </div>
+                <div class="space-y-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div class="text-sm font-semibold text-gray-800">Color Picker</div>
+                    <div class="grid grid-cols-8 gap-2">
+                        <div class="color-swatch bg-black" onclick="selectColorFromSwatch(0, 0, 0)"></div>
+                        <div class="color-swatch bg-white" onclick="selectColorFromSwatch(255, 255, 255)"></div>
+                        <div class="color-swatch bg-red-500" onclick="selectColorFromSwatch(255, 0, 0)"></div>
+                        <div class="color-swatch bg-green-500" onclick="selectColorFromSwatch(0, 255, 0)"></div>
+                        <div class="color-swatch bg-blue-500" onclick="selectColorFromSwatch(0, 0, 255)"></div>
+                        <div class="color-swatch bg-yellow-400" onclick="selectColorFromSwatch(255, 255, 0)"></div>
+                        <div class="color-swatch bg-purple-500" onclick="selectColorFromSwatch(128, 0, 128)"></div>
+                        <div class="color-swatch bg-cyan-400" onclick="selectColorFromSwatch(0, 255, 255)"></div>
+                        <div class="color-swatch bg-orange-500" onclick="selectColorFromSwatch(255, 165, 0)"></div>
+                        <div class="color-swatch bg-pink-500" onclick="selectColorFromSwatch(255, 192, 203)"></div>
+                        <div class="color-swatch bg-lime-400" onclick="selectColorFromSwatch(0, 255, 0)"></div>
+                        <div class="color-swatch bg-indigo-500" onclick="selectColorFromSwatch(75, 0, 130)"></div>
+                        <div class="color-swatch bg-amber-500" onclick="selectColorFromSwatch(255, 193, 7)"></div>
+                        <div class="color-swatch bg-teal-500" onclick="selectColorFromSwatch(0, 128, 128)"></div>
+                        <div class="color-swatch bg-rose-500" onclick="selectColorFromSwatch(255, 20, 147)"></div>
+                        <div class="color-swatch bg-sky-400" onclick="selectColorFromSwatch(135, 206, 235)"></div>
+                    </div>
+                    <input type="color" id="popupColorPicker" class="w-full h-10 border-2 border-gray-300 rounded cursor-pointer">
+                    <div class="text-xs text-gray-600">
+                        <div>Click cells to select • Ctrl/Cmd+click to multi-select • Shift+click for range</div>
+                        <div class="mt-1 font-mono" id="selectedCellInfo">No cells selected</div>
+                    </div>
+                </div>
+                <div class="space-y-2 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <div class="text-sm font-semibold text-gray-800">Color History</div>
+                    <div id="colorHistory" class="flex flex-wrap gap-2">
+                        <!-- Color history will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </div> 
+         
+        <div class="bg-blue-50 border-l-4 border-r-4 border-blue-500 -mx-5 p-5 text-xs lg:text-sm">
+            <p class="text-blue-700 my-1"><strong>Instructions:</strong></p>
+            <p class="text-blue-700 my-1">• Click on any cell to open color picker and set its color</p>
+            <p class="text-blue-700 my-1">• Use the color picker at the bottom to change the current color</p>
+            <p class="text-blue-700 my-1">• Upload an image to automatically pixelate it to 16×16 (center crop)</p>
+            <p class="text-blue-700 my-1">• Use "Clear All" to reset all pixels to black (off)</p>
+            <p class="text-blue-700 my-1">• Use flip buttons to mirror your pattern (X-axis, Y-axis, or both)</p>
+            <p class="text-blue-700 my-1">• Click "Generate Code" to create Adafruit NeoMatrix code</p>
+        </div>
+    </div>
+
+
+    <script>
+        const GRID_SIZE = 16;
+        // Grid state: 16x16 array, each cell stores {r, g, b} or null for off
+        let grid = Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE).fill(null));
+        let isDrawing = false;
+        let selectedCells = []; // Array of {row, col} objects for multi-select
+        let lastSelectedCell = null; // For shift-click range selection
+        let currentColor = {r: 255, g: 0, b: 0};
+        let originalImageData = null; // Store original pixelated image data for re-quantization
+        const MAX_HISTORY = 10; // Maximum number of colors in history
+
+        // Initialize the grid
+        function initGrid() {
+            const gridElement = document.getElementById('ledGrid');
+            gridElement.innerHTML = '';
+
+            for (let row = 0; row < GRID_SIZE; row++) {
+                for (let col = 0; col < GRID_SIZE; col++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+
+                    cell.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        handleCellClick(e, row, col);
+                    });
+
+                    gridElement.appendChild(cell);
+                }
+            }
+
+            // Load saved grid state if available
+            if (loadGridState()) {
+                updateGridDisplay();
+            } else {
+                updateGridDisplay();
+            }
+            setupColorPicker();
+        }
+
+        function handleCellClick(e, row, col) {
+            const cellKey = `${row},${col}`;
+            const cellIndex = selectedCells.findIndex(c => `${c.row},${c.col}` === cellKey);
+            
+            if (e.shiftKey && lastSelectedCell) {
+                // Shift+click: select range
+                selectRange(lastSelectedCell, {row, col});
+            } else if (e.ctrlKey || e.metaKey) {
+                // Ctrl/Cmd+click: toggle selection
+                if (cellIndex >= 0) {
+                    selectedCells.splice(cellIndex, 1);
+                } else {
+                    selectedCells.push({row, col});
+                }
+            } else {
+                // Regular click: replace selection
+                selectedCells = [{row, col}];
+            }
+            
+            lastSelectedCell = {row, col};
+            updateSelectionDisplay();
+            updateColorPickerForSelection();
+        }
+
+        function selectRange(start, end) {
+            selectedCells = [];
+            const minRow = Math.min(start.row, end.row);
+            const maxRow = Math.max(start.row, end.row);
+            const minCol = Math.min(start.col, end.col);
+            const maxCol = Math.max(start.col, end.col);
+            
+            for (let row = minRow; row <= maxRow; row++) {
+                for (let col = minCol; col <= maxCol; col++) {
+                    selectedCells.push({row, col});
+                }
+            }
+        }
+
+        function updateSelectionDisplay() {
+            const cells = document.querySelectorAll('.cell');
+            cells.forEach(cell => {
+                cell.classList.remove('selected');
+            });
+            
+            selectedCells.forEach(({row, col}) => {
+                const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                if (cell) {
+                    cell.classList.add('selected');
+                }
+            });
+            
+            // Update selected cell info
+            const cellInfo = document.getElementById('selectedCellInfo');
+            if (selectedCells.length === 0) {
+                cellInfo.textContent = 'No cells selected';
+            } else if (selectedCells.length === 1) {
+                const {row, col} = selectedCells[0];
+                cellInfo.textContent = `Selected: Row ${row + 1}, Col ${col + 1}`;
+            } else {
+                cellInfo.textContent = `${selectedCells.length} cells selected`;
+            }
+        }
+
+        function updateColorPickerForSelection() {
+            if (selectedCells.length === 0) return;
+            
+            // If single cell selected, show its color
+            if (selectedCells.length === 1) {
+                const {row, col} = selectedCells[0];
+                openColorPicker(row, col);
+            } else {
+                // Multiple cells: show average color or first cell's color
+                const {row, col} = selectedCells[0];
+                const currentPixel = grid[row][col];
+                let hex;
+                if (currentPixel) {
+                    hex = rgbToHex(currentPixel.r, currentPixel.g, currentPixel.b);
+                    currentColor = currentPixel;
+                } else {
+                    hex = '#000000';
+                    currentColor = {r: 0, g: 0, b: 0};
+                }
+                document.getElementById('colorPicker').value = hex;
+                document.getElementById('popupColorPicker').value = hex;
+                updateColorDisplay();
+            }
+        }
+
+        function setupColorPicker() {
+            const colorPicker = document.getElementById('colorPicker');
+            const popupColorPicker = document.getElementById('popupColorPicker');
+            
+            colorPicker.addEventListener('input', (e) => {
+                const hex = e.target.value;
+                const rgb = hexToRgb(hex);
+                currentColor = rgb;
+                // Sync both color pickers
+                document.getElementById('popupColorPicker').value = hex;
+                updateColorDisplay();
+            });
+
+            popupColorPicker.addEventListener('input', (e) => {
+                const hex = e.target.value;
+                const rgb = hexToRgb(hex);
+                currentColor = rgb;
+                // Sync both color pickers
+                document.getElementById('colorPicker').value = hex;
+                updateColorDisplay();
+                // Auto-apply to selected cells
+                applyColorToSelectedCells(currentColor);
+            });
+        }
+
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : {r: 0, g: 0, b: 0};
+        }
+
+        function rgbToHex(r, g, b) {
+            return "#" + [r, g, b].map(x => {
+                const hex = x.toString(16);
+                return hex.length === 1 ? "0" + hex : hex;
+            }).join("");
+        }
+
+        function updateColorDisplay() {
+            const rgbDisplay = document.getElementById('rgbDisplay');
+            rgbDisplay.textContent = `RGB(${currentColor.r}, ${currentColor.g}, ${currentColor.b})`;
+        }
+
+        function openColorPicker(row, col) {
+            // Set current color in both color pickers (left and right columns)
+            const currentPixel = grid[row][col];
+            let hex;
+            if (currentPixel) {
+                hex = rgbToHex(currentPixel.r, currentPixel.g, currentPixel.b);
+                currentColor = currentPixel;
+            } else {
+                // If cell is off/black, set to black
+                hex = '#000000';
+                currentColor = {r: 0, g: 0, b: 0};
+            }
+            
+            // Update both color pickers
+            document.getElementById('colorPicker').value = hex;
+            document.getElementById('popupColorPicker').value = hex;
+            updateColorDisplay();
+        }
+
+        function selectColorFromSwatch(r, g, b) {
+            currentColor = {r, g, b};
+            const hex = rgbToHex(r, g, b);
+            document.getElementById('colorPicker').value = hex;
+            document.getElementById('popupColorPicker').value = hex;
+            updateColorDisplay();
+            // Auto-apply to selected cells
+            applyColorToSelectedCells(currentColor);
+        }
+
+        function setCellColor(row, col, color) {
+            grid[row][col] = color;
+            updateGridDisplay();
+        }
+        
+        function applyColorToSelectedCells(color) {
+            if (selectedCells.length === 0) return;
+            
+            // Apply color to all selected cells
+            selectedCells.forEach(({row, col}) => {
+                grid[row][col] = color;
+            });
+            
+            updateGridDisplay();
+            // Add color to history when applied
+            addColorToHistory(color);
+        }
+        
+        function addColorToHistory(color) {
+            // Load existing history
+            let history = loadColorHistory();
+            
+            // Remove duplicate if exists (to move it to front)
+            const colorKey = `${color.r},${color.g},${color.b}`;
+            history = history.filter(c => `${c.r},${c.g},${c.b}` !== colorKey);
+            
+            // Add to front
+            history.unshift(color);
+            
+            // Keep only last MAX_HISTORY colors
+            if (history.length > MAX_HISTORY) {
+                history = history.slice(0, MAX_HISTORY);
+            }
+            
+            // Save to local storage
+            saveColorHistory(history);
+            
+            // Update display
+            displayColorHistory();
+        }
+        
+        function saveColorHistory(history) {
+            try {
+                localStorage.setItem('colorHistory', JSON.stringify(history));
+            } catch (e) {
+                console.warn('Could not save color history to localStorage:', e);
+            }
+        }
+        
+        function loadColorHistory() {
+            try {
+                const stored = localStorage.getItem('colorHistory');
+                if (stored) {
+                    return JSON.parse(stored);
+                }
+            } catch (e) {
+                console.warn('Could not load color history from localStorage:', e);
+            }
+            return [];
+        }
+        
+        function displayColorHistory() {
+            const history = loadColorHistory();
+            const historyContainer = document.getElementById('colorHistory');
+            historyContainer.innerHTML = '';
+            
+            if (history.length === 0) {
+                historyContainer.innerHTML = '<div class="col-span-5 text-xs text-gray-500 text-center">No colors used yet</div>';
+                return;
+            }
+            
+            history.forEach(color => {
+                const swatch = document.createElement('div');
+                swatch.className = 'color-swatch cursor-pointer';
+                swatch.style.backgroundColor = `rgb(${color.r}, ${color.g}, ${color.b})`;
+                swatch.title = `RGB(${color.r}, ${color.g}, ${color.b})`;
+                swatch.onclick = () => selectColorFromHistory(color);
+                historyContainer.appendChild(swatch);
+            });
+        }
+        
+        function selectColorFromHistory(color) {
+            currentColor = color;
+            const hex = rgbToHex(color.r, color.g, color.b);
+            document.getElementById('colorPicker').value = hex;
+            document.getElementById('popupColorPicker').value = hex;
+            updateColorDisplay();
+            // Auto-apply to selected cells
+            applyColorToSelectedCells(currentColor);
+        }
+
+        function setSelectedColor() {
+            const colorPicker = document.getElementById('colorPicker');
+            const hex = colorPicker.value;
+            const rgb = hexToRgb(hex);
+            currentColor = rgb;
+            // Sync both color pickers
+            document.getElementById('popupColorPicker').value = hex;
+            updateColorDisplay();
+            // Apply to selected cells
+            applyColorToSelectedCells(currentColor);
+        }
+
+        function updateGridDisplay() {
+            const cells = document.querySelectorAll('.cell');
+            cells.forEach(cell => {
+                const row = parseInt(cell.dataset.row);
+                const col = parseInt(cell.dataset.col);
+                const pixel = grid[row][col];
+                
+                if (pixel) {
+                    const color = `rgb(${pixel.r}, ${pixel.g}, ${pixel.b})`;
+                    cell.style.backgroundColor = color;
+                    cell.style.borderColor = '#666';
+                } else {
+                    cell.style.backgroundColor = '#000';
+                    cell.style.borderColor = '#333';
+                }
+            });
+            // Save grid state after display update
+            saveGridState();
+        }
+        
+        function saveGridState() {
+            try {
+                // Convert grid to a serializable format
+                const gridData = grid.map(row => 
+                    row.map(cell => cell ? {r: cell.r, g: cell.g, b: cell.b} : null)
+                );
+                localStorage.setItem('ledGridState', JSON.stringify(gridData));
+            } catch (e) {
+                console.warn('Could not save grid state to localStorage:', e);
+            }
+        }
+        
+        function loadGridState() {
+            try {
+                const stored = localStorage.getItem('ledGridState');
+                if (stored) {
+                    const gridData = JSON.parse(stored);
+                    // Validate and restore grid
+                    if (Array.isArray(gridData) && gridData.length === GRID_SIZE) {
+                        grid = gridData.map(row => {
+                            if (!Array.isArray(row) || row.length !== GRID_SIZE) {
+                                return Array(GRID_SIZE).fill(null);
+                            }
+                            return row.map(cell => {
+                                if (cell && typeof cell === 'object' && 'r' in cell && 'g' in cell && 'b' in cell) {
+                                    return {r: cell.r, g: cell.g, b: cell.b};
+                                }
+                                return null;
+                            });
+                        });
+                        return true;
+                    }
+                }
+            } catch (e) {
+                console.warn('Could not load grid state from localStorage:', e);
+            }
+            return false;
+        }
+
+        function clearGrid() {
+            if (confirm('Are you sure you want to clear all cells? This will also clear the saved drawing.')) {
+                grid = Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE).fill(null));
+                updateGridDisplay();
+                // Explicitly save the cleared state
+                saveGridState();
+            }
+        }
+
+        function invertGrid() {
+            for (let row = 0; row < GRID_SIZE; row++) {
+                for (let col = 0; col < GRID_SIZE; col++) {
+                    const pixel = grid[row][col];
+                    if (pixel) {
+                        grid[row][col] = {
+                            r: 255 - pixel.r,
+                            g: 255 - pixel.g,
+                            b: 255 - pixel.b
+                        };
+                    } else {
+                        grid[row][col] = {r: 255, g: 255, b: 255};
+                    }
+                }
+            }
+            updateGridDisplay();
+        }
+
+        function flipHorizontal() {
+            for (let row = 0; row < GRID_SIZE; row++) {
+                for (let col = 0; col < GRID_SIZE / 2; col++) {
+                    const temp = grid[row][col];
+                    grid[row][col] = grid[row][GRID_SIZE - 1 - col];
+                    grid[row][GRID_SIZE - 1 - col] = temp;
+                }
+            }
+            updateGridDisplay();
+        }
+
+        function flipVertical() {
+            for (let row = 0; row < GRID_SIZE / 2; row++) {
+                for (let col = 0; col < GRID_SIZE; col++) {
+                    const temp = grid[row][col];
+                    grid[row][col] = grid[GRID_SIZE - 1 - row][col];
+                    grid[GRID_SIZE - 1 - row][col] = temp;
+                }
+            }
+            updateGridDisplay();
+        }
+
+        function flipBoth() {
+            flipHorizontal();
+            flipVertical();
+        }
+
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    pixelateImage(img);
+                };
+                img.onerror = function() {
+                    alert('Error loading image. Please try a different file.');
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function quantizeColor(value, levels) {
+            // Quantize color to reduce variation
+            // levels = number of quantization levels (e.g., 8 means values 0, 32, 64, 96, 128, 160, 192, 224, 255)
+            const step = 255 / (levels - 1);
+            return Math.round(value / step) * step;
+        }
+
+        function pixelateImage(img) {
+            // Create a canvas to resize the image to 16x16
+            const canvas = document.createElement('canvas');
+            canvas.width = GRID_SIZE;
+            canvas.height = GRID_SIZE;
+            const ctx = canvas.getContext('2d');
+
+            // Calculate aspect ratio and crop to square (center crop)
+            const minDim = Math.min(img.width, img.height);
+            const sourceX = (img.width - minDim) / 2;
+            const sourceY = (img.height - minDim) / 2;
+
+            // Draw image resized to 16x16 (this creates pixelation)
+            ctx.drawImage(
+                img,
+                sourceX, sourceY, minDim, minDim,  // source: crop to square
+                0, 0, GRID_SIZE, GRID_SIZE        // destination: 16x16
+            );
+
+            // Sample each pixel and store original data (before quantization)
+            const imageData = ctx.getImageData(0, 0, GRID_SIZE, GRID_SIZE);
+            // Store a copy of the original data for re-quantization
+            originalImageData = new ImageData(
+                new Uint8ClampedArray(imageData.data),
+                imageData.width,
+                imageData.height
+            );
+
+            // Apply quantization with current slider value
+            applyQuantization();
+        }
+
+        function applyQuantization() {
+            if (!originalImageData) return;
+
+            const colorLevels = parseInt(document.getElementById('quantizationSlider').value) || 8;
+            const data = new Uint8ClampedArray(originalImageData.data);
+            const canvas = document.createElement('canvas');
+            canvas.width = GRID_SIZE;
+            canvas.height = GRID_SIZE;
+            const ctx = canvas.getContext('2d');
+
+            for (let row = 0; row < GRID_SIZE; row++) {
+                for (let col = 0; col < GRID_SIZE; col++) {
+                    const index = (row * GRID_SIZE + col) * 4;
+                    let r = data[index];
+                    let g = data[index + 1];
+                    let b = data[index + 2];
+                    const a = data[index + 3];
+
+                    // If pixel is mostly transparent, set to null (off)
+                    if (a < 128) {
+                        grid[row][col] = null;
+                        data[index] = 0;
+                        data[index + 1] = 0;
+                        data[index + 2] = 0;
+                    } else {
+                        // Quantize colors to reduce variation
+                        r = quantizeColor(r, colorLevels);
+                        g = quantizeColor(g, colorLevels);
+                        b = quantizeColor(b, colorLevels);
+                        
+                        grid[row][col] = {r, g, b};
+                        
+                        // Update the canvas data for preview
+                        data[index] = r;
+                        data[index + 1] = g;
+                        data[index + 2] = b;
+                    }
+                }
+            }
+            
+            // Put the processed image data to canvas for preview
+            const processedImageData = new ImageData(data, GRID_SIZE, GRID_SIZE);
+            ctx.putImageData(processedImageData, 0, 0);
+
+            // Show preview
+            const imagePreviewDiv = document.getElementById('imagePreview');
+            imagePreviewDiv.classList.remove('hidden');
+            
+            const previewCanvas = document.getElementById('previewCanvas');
+            const previewCtx = previewCanvas.getContext('2d');
+            previewCanvas.width = 256; // Show at 16x zoom for visibility
+            previewCanvas.height = 256;
+            previewCtx.imageSmoothingEnabled = false; // Keep it pixelated
+            previewCtx.drawImage(canvas, 0, 0, 256, 256);
+
+            updateGridDisplay();
+        }
+
+        function updateQuantization(value) {
+            document.getElementById('quantizationValue').textContent = value + ' levels';
+            if (originalImageData) {
+                applyQuantization();
+            }
+        }
+
+        function generateCode() {
+            // Generate code in the format similar to the example
+            // We'll create a character map and color definitions
+            
+            // First, find all unique colors and assign them characters
+            const colorMap = new Map();
+            const colors = [];
+            let nextChar = 'A';
+            
+            // Collect all unique colors
+            for (let row = 0; row < GRID_SIZE; row++) {
+                for (let col = 0; col < GRID_SIZE; col++) {
+                    const pixel = grid[row][col];
+                    if (pixel) {
+                        const key = `${pixel.r},${pixel.g},${pixel.b}`;
+                        if (!colorMap.has(key)) {
+                            colorMap.set(key, {char: nextChar, color: pixel});
+                            colors.push({char: nextChar, color: pixel});
+                            nextChar = String.fromCharCode(nextChar.charCodeAt(0) + 1);
+                            if (nextChar > 'Z') nextChar = 'a';
+                        }
+                    }
+                }
+            }
+            
+            // Generate character map
+            let mapLines = [];
+            for (let row = 0; row < GRID_SIZE; row++) {
+                let line = '"';
+                for (let col = 0; col < GRID_SIZE; col++) {
+                    const pixel = grid[row][col];
+                    if (pixel) {
+                        const key = `${pixel.r},${pixel.g},${pixel.b}`;
+                        line += colorMap.get(key).char;
+                    } else {
+                        line += ' '; // Space for off/black
+                    }
+                }
+                line += '"';
+                mapLines.push(line);
+            }
+            
+            // Generate color definitions
+            let colorDefs = [];
+            colors.forEach(({char, color}) => {
+                const varName = `COL_${char}`;
+                colorDefs.push(`uint16_t ${varName} = matrix.Color(${color.r}, ${color.g}, ${color.b});`);
+            });
+            
+            // Generate the full code
+            const code = `#include <Adafruit_GFX.h>
+#include <Adafruit_NeoMatrix.h>
+#include <Adafruit_NeoPixel.h>
+
+#define PIN 6
+
+Adafruit_NeoMatrix matrix = Adafruit_NeoMatrix(
+  16, 16, PIN,
+  NEO_MATRIX_TOP + NEO_MATRIX_LEFT + NEO_MATRIX_ZIGZAG,
+  NEO_GRB + NEO_KHZ800
+);
+
+// Color definitions
+${colorDefs.join('\n')}
+
+// Pattern map
+const char *MAP[16] = {
+${mapLines.map(line => '  ' + line).join(',\n')}
+};
+
+void setup() {
+  matrix.begin();
+  matrix.setBrightness(35);
+  matrix.fillScreen(0);
+}
+
+void loop() {
+  drawMap();
+  matrix.show();
+  delay(100);
+}
+
+void drawMap() {
+  for (int y = 0; y < 16; y++) {
+    for (int x = 0; x < 16; x++) {
+      char ch = MAP[y][x];
+      uint16_t color = 0; // default black
+      
+      switch (ch) {
+${colors.map(({char, color}) => `        case '${char}': color = COL_${char}; break;`).join('\n')}
+        case ' ': color = 0; break; // off
+      }
+      
+      matrix.drawPixel(x, y, color);
+    }
+  }
+}`;
+
+            document.getElementById('codeOutput').textContent = code;
+        }
+
+        function copyCode() {
+            const code = document.getElementById('codeOutput').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = event.target;
+                const originalText = btn.textContent;
+                btn.textContent = 'Copied!';
+                btn.classList.add('bg-cyan-600');
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.classList.remove('bg-cyan-600');
+                }, 2000);
+            });
+        }
+
+
+        // Initialize on page load
+        initGrid();
+        updateColorDisplay();
+        displayColorHistory(); // Load and display color history
+    </script>
+</body>
+
+</html>
